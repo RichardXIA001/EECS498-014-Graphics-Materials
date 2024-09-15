@@ -1,4 +1,4 @@
-task: shading
+task: shading-depth
 antialias: SSAA
 samples: 16
 resolution:

@@ -4,7 +4,6 @@
 #include "loader.hpp"
 #include "rasterizer.hpp"
 #include <random>
-#include <iostream>
 // TODO
 bool IsPixelInsideTriangle(float x, float y, Triangle trig)
 {
@@ -84,6 +83,7 @@ void Rasterizer::DrawPixel(uint32_t x, uint32_t y, Triangle trig, AntiAliasConfi
             }
         }
         // Set the color of the sample
+        double ratio = count / spp;
         image.Set(x, y, color * (count / spp));
     }
     return;
@@ -163,6 +163,7 @@ void Rasterizer::SetProjection()
 {
     const Camera& camera = this->loader.GetCamera();
 
+    // Bug fix: nearClip and farClip should be negative
     float nearClip = -camera.nearClip;                   // near clipping distance, strictly positive
     float farClip = -camera.farClip;                     // far clipping distance, strictly positive
     
@@ -187,12 +188,12 @@ void Rasterizer::SetProjection()
 
     M_scale[0][0] = 2.0f / width;
     M_scale[1][1] = 2.0f / height;
+    // Bug fix: should be nearClip - farClip when nearClip > farClip
     M_scale[2][2] = 2.0f / (nearClip - farClip);
 
     M_translate[3][2] = -(farClip + nearClip) / 2.0f;
-    // M_translate[3][1] = - height / 2.0f;
-    // M_translate[3][0] = - width / 2.0f;
     
+    // Bug fix: should be scale * translate, because the scale matrix is applicable only if the center of object is at origin 
     M_ortho = M_scale * M_translate;
 
     this->projection = M_ortho * M_persp;
@@ -209,31 +210,60 @@ void Rasterizer::SetScreenSpace()
     // TODO change this line to the correct screenspace matrix
     this->screenspace = glm::mat4(1.);
 
-    this->screenspace[3][0] = width / 2.0f;
-    this->screenspace[3][1] = height / 2.0f;
-
     this->screenspace[0][0] = width / 2.0f;
     this->screenspace[1][1] = height / 2.0f;
-
+    this->screenspace[3][0] = width / 2.0f;
+    this->screenspace[3][1] = height / 2.0f;
     return;
 }
 
 // TODO
 glm::vec3 Rasterizer::BarycentricCoordinate(glm::vec2 pos, Triangle trig)
 {
-    return glm::vec3();
+    // Assume z value of the vertex is 0
+
+    // Convert trig positions to vec3 by dropping the w component from vec4
+    trig.Homogenize();
+    glm::vec3 vec_a = glm::vec3(trig.pos[0]);  // Convert directly from vec4 to vec3
+    glm::vec3 vec_b = glm::vec3(trig.pos[1]);
+    glm::vec3 vec_c = glm::vec3(trig.pos[2]);
+
+    glm::vec3 vec_p = glm::vec3(pos.x, pos.y, 0.0f);
+
+    // Calculate cross products
+    glm::vec3 cross_product_1 = glm::cross(vec_b - vec_a, vec_p - vec_a);
+    glm::vec3 cross_product_2 = glm::cross(vec_c - vec_b, vec_p - vec_b);
+    glm::vec3 cross_product_3 = glm::cross(vec_a - vec_c, vec_p - vec_c);
+
+    // Calculate the area of the triangle
+    float area = glm::cross(vec_b - vec_a, vec_c - vec_a).z;
+
+    // Calculate the barycentric coordinates
+    float alpha = cross_product_2.z / area;
+    float beta = cross_product_3.z / area;
+    float gamma = cross_product_1.z / area;
+
+    return glm::vec3(alpha, beta, gamma);
 }
 
 // TODO
-float Rasterizer::zBufferDefault = float();
+// float Rasterizer::zBufferDefault = float();
 
+float Rasterizer::zBufferDefault = 1.1f;          // assume the default value of ZBuffer is infinity
 // TODO
 void Rasterizer::UpdateDepthAtPixel(uint32_t x, uint32_t y, Triangle original, Triangle transformed, ImageGrey& ZBuffer)
 {
-
-    float result;
-    ZBuffer.Set(x, y, result);
-
+    if (IsPixelInsideTriangle(x + 0.5, y + 0.5, transformed))
+    {
+        // Calculate the barycentric coordinates of the pixel
+        glm::vec3 barycentric = BarycentricCoordinate(glm::vec2(x + 0.5, y + 0.5), transformed);           // Bug Fix: x + 0.5, y + 0.5, or the pixel will be at the top-left corner of the triangle
+        
+        float result = glm::dot(barycentric, glm::vec3(original.pos[0].z, original.pos[1].z, original.pos[2].z));
+        
+        if (result < ZBuffer.Get(x, y)){
+            ZBuffer.Set(x, y, result);
+        }
+    }
     return;
 }
 
