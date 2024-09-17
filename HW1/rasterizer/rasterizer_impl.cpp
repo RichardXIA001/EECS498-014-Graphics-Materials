@@ -295,7 +295,9 @@ Color CalculateColor_BlinnPhong(glm::vec3 pos, glm::vec3 normal, glm::vec3 view_
 
     float diffuse_decay;
     float specular_decay;
+    result = ambientColor;
 
+    specularExponent = specularExponent;
     for (auto& light : lights)
     {
         // Calculate the light direction
@@ -323,7 +325,7 @@ Color CalculateColor_BlinnPhong(glm::vec3 pos, glm::vec3 normal, glm::vec3 view_
         specularColor = specular_decay* light.color * specular;
 
         // Calculate the final color
-        result = diffuseColor + specularColor + result + ambientColor * light.intensity;
+        result = diffuseColor + specularColor + result;
     }
     return result;
 }
@@ -355,9 +357,9 @@ void Rasterizer::ShadeAtPixel(uint32_t x, uint32_t y, Triangle original, Triangl
 
             glm::vec3 original_coords = CalculateCoordsWithBarycentric(barycentric, original.pos);
 
-            glm::vec3 view_pos = glm::normalize(cam_pos);
+            // glm::vec3 view_pos = glm::normalize(cam_pos);
 
-            result = CalculateColor_BlinnPhong(original_coords, normal, view_pos, lights, ambient, specularExponent);
+            result = CalculateColor_BlinnPhong(original_coords, normal, cam_pos, lights, ambient, specularExponent);
 
             image.Set(x, y, result);
         }
