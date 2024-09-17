@@ -320,3 +320,5 @@ TSWLatexianTemp*
 *.o
 
 *Makefile
+
+*gitignore

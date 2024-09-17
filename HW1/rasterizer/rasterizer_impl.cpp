@@ -4,6 +4,7 @@
 #include "loader.hpp"
 #include "rasterizer.hpp"
 #include <random>
+#include <iostream>
 // TODO
 bool IsPixelInsideTriangle(float x, float y, Triangle trig)
 {
@@ -249,7 +250,7 @@ glm::vec3 Rasterizer::BarycentricCoordinate(glm::vec2 pos, Triangle trig)
 // TODO
 // float Rasterizer::zBufferDefault = float();
 
-float Rasterizer::zBufferDefault = 1.1f;          // assume the default value of ZBuffer is infinity
+float Rasterizer::zBufferDefault = -1.1f;          // assume the default value of ZBuffer is infinity
 // TODO
 void Rasterizer::UpdateDepthAtPixel(uint32_t x, uint32_t y, Triangle original, Triangle transformed, ImageGrey& ZBuffer)
 {
@@ -260,19 +261,106 @@ void Rasterizer::UpdateDepthAtPixel(uint32_t x, uint32_t y, Triangle original, T
         
         float result = glm::dot(barycentric, glm::vec3(original.pos[0].z, original.pos[1].z, original.pos[2].z));
         
-        if (result < ZBuffer.Get(x, y)){
+        if (result > ZBuffer.Get(x, y)){
             ZBuffer.Set(x, y, result);
         }
     }
     return;
 }
 
+glm::vec3 CalculateCoordsWithBarycentric(glm::vec3 barycentric, std::array<glm::vec4, 3> original)
+{
+    glm::vec3 coords = barycentric.x * glm::vec3(original[0]) + barycentric.y * glm::vec3(original[1]) + barycentric.z * glm::vec3(original[2]);
+    return coords;
+}
+
+
+glm::vec3 CalculateNormal(glm::vec3 barycentric, Triangle original)
+{
+    glm::vec3 normal = CalculateCoordsWithBarycentric(barycentric, original.normal);
+    return glm::normalize(normal);
+}
+
+Color CalculateColor_BlinnPhong(glm::vec3 pos, glm::vec3 normal, glm::vec3 view_pos, std::vector<Light> lights, Color ambient, float specularExponent)
+{
+    Color result = Color(0.0f, 0.0f, 0.0f, 0.0f);
+    glm::vec3 lightDir;
+    glm::vec3 half;
+    float diffuse;
+    float specular;
+    Color ambientColor = ambient;
+    Color diffuseColor;
+    Color specularColor;
+    glm::vec3 view = glm::normalize(view_pos - pos);
+
+    float diffuse_decay;
+    float specular_decay;
+
+    for (auto& light : lights)
+    {
+        // Calculate the light direction
+        lightDir = glm::normalize(light.pos - pos);
+
+        // Calculate the half vector
+        half = glm::normalize(lightDir + view);
+
+        // Calculate the diffuse term
+        diffuse = glm::max(glm::dot(normal, lightDir), 0.0f);
+
+        // Calculate the specular term
+        specular = glm::pow(glm::max(glm::dot(normal, half), 0.0f), specularExponent);
+
+        // Calculate the light decay
+        diffuse_decay = light.intensity / (glm::length(light.pos - pos) * glm::length(light.pos - pos));
+
+        // Calculate the diffuse term
+        diffuseColor = diffuse_decay * light.color * diffuse ;
+
+        // Calculate the specular decay
+        specular_decay = light.intensity / (glm::length(light.pos - pos) * glm::length(light.pos - pos));
+
+        // Calculate the specular term
+        specularColor = specular_decay* light.color * specular;
+
+        // Calculate the final color
+        result = diffuseColor + specularColor + result + ambientColor * light.intensity;
+    }
+    return result;
+}
+
 // TODO
 void Rasterizer::ShadeAtPixel(uint32_t x, uint32_t y, Triangle original, Triangle transformed, Image& image)
 {
 
+    // Calculate the barycentric coordinates of the pixel
     Color result;
-    image.Set(x, y, result);
+    float depth;
+    
+    std::vector<Light> lights = this->loader.GetLights();
+    Color ambient = this->loader.GetAmbientColor();
+    float specularExponent = this->loader.GetSpecularExponent();
+    glm::vec3 cam_pos = this->loader.GetCamera().pos;
 
+    if (IsPixelInsideTriangle(x + 0.5, y + 0.5, transformed))
+    {
+        glm::vec3 barycentric = BarycentricCoordinate(glm::vec2(x + 0.5, y + 0.5), transformed);           // Bug Fix: x + 0.5, y + 0.5, or the pixel will be at the top-left corner of the triangle
+
+        // Calculate the original depth of the pixel
+        depth = glm::dot(barycentric, glm::vec3(original.pos[0].z, original.pos[1].z, original.pos[2].z));
+
+        if (depth == this->ZBuffer.Get(x, y))
+        {
+            // Calculate the normal of the pixel
+            glm::vec3 normal = CalculateNormal(barycentric, original);
+
+            glm::vec3 original_coords = CalculateCoordsWithBarycentric(barycentric, original.pos);
+
+            glm::vec3 view_pos = glm::normalize(cam_pos);
+
+            result = CalculateColor_BlinnPhong(original_coords, normal, view_pos, lights, ambient, specularExponent);
+
+            image.Set(x, y, result);
+        }
+    }
     return;
 }
