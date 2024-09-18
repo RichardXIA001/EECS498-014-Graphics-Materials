@@ -316,13 +316,13 @@ Color CalculateColor_BlinnPhong(glm::vec3 pos, glm::vec3 normal, glm::vec3 view_
         diffuse_decay = light.intensity / (glm::length(light.pos - pos) * glm::length(light.pos - pos));
 
         // Calculate the diffuse term
-        diffuseColor = diffuse_decay * light.color * diffuse ;
+        diffuseColor = diffuse_decay * diffuse * light.color;
 
         // Calculate the specular decay
         specular_decay = light.intensity / (glm::length(light.pos - pos) * glm::length(light.pos - pos));
 
         // Calculate the specular term
-        specularColor = specular_decay* light.color * specular;
+        specularColor = specular_decay * specular * light.color;
 
         // Calculate the final color
         result = diffuseColor + specularColor + result;
