@@ -250,7 +250,7 @@ glm::vec3 Rasterizer::BarycentricCoordinate(glm::vec2 pos, Triangle trig)
 // TODO
 // float Rasterizer::zBufferDefault = float();
 
-float Rasterizer::zBufferDefault = -1.1f;          // assume the default value of ZBuffer is infinity
+float Rasterizer::zBufferDefault = -2.0f;          // assume the default value of ZBuffer is infinity
 // TODO
 void Rasterizer::UpdateDepthAtPixel(uint32_t x, uint32_t y, Triangle original, Triangle transformed, ImageGrey& ZBuffer)
 {
@@ -259,7 +259,8 @@ void Rasterizer::UpdateDepthAtPixel(uint32_t x, uint32_t y, Triangle original, T
         // Calculate the barycentric coordinates of the pixel
         glm::vec3 barycentric = BarycentricCoordinate(glm::vec2(x + 0.5, y + 0.5), transformed);           // Bug Fix: x + 0.5, y + 0.5, or the pixel will be at the top-left corner of the triangle
         
-        float result = glm::dot(barycentric, glm::vec3(original.pos[0].z, original.pos[1].z, original.pos[2].z));
+        // float result = glm::dot(barycentric, glm::vec3(original.pos[0].z, original.pos[1].z, original.pos[2].z));
+        float result = glm::dot(barycentric, glm::vec3(transformed.pos[0].z, transformed.pos[1].z, transformed.pos[2].z));
         
         if (result > ZBuffer.Get(x, y)){
             ZBuffer.Set(x, y, result);
@@ -283,7 +284,7 @@ glm::vec3 CalculateNormal(glm::vec3 barycentric, Triangle original)
 
 Color CalculateColor_BlinnPhong(glm::vec3 pos, glm::vec3 normal, glm::vec3 view_pos, std::vector<Light> lights, Color ambient, float specularExponent)
 {
-    Color result = Color(0.0f, 0.0f, 0.0f, 0.0f);
+    Color result;
     glm::vec3 lightDir;
     glm::vec3 half;
     float diffuse;
@@ -316,13 +317,13 @@ Color CalculateColor_BlinnPhong(glm::vec3 pos, glm::vec3 normal, glm::vec3 view_
         diffuse_decay = light.intensity / (glm::length(light.pos - pos) * glm::length(light.pos - pos));
 
         // Calculate the diffuse term
-        diffuseColor = diffuse_decay * diffuse * light.color;
+        diffuseColor = (diffuse_decay * diffuse) * light.color;
 
         // Calculate the specular decay
         specular_decay = light.intensity / (glm::length(light.pos - pos) * glm::length(light.pos - pos));
 
         // Calculate the specular term
-        specularColor = specular_decay * specular * light.color;
+        specularColor = (specular_decay * specular) * light.color;
 
         // Calculate the final color
         result = diffuseColor + specularColor + result;
@@ -348,7 +349,9 @@ void Rasterizer::ShadeAtPixel(uint32_t x, uint32_t y, Triangle original, Triangl
         glm::vec3 barycentric = BarycentricCoordinate(glm::vec2(x + 0.5, y + 0.5), transformed);           // Bug Fix: x + 0.5, y + 0.5, or the pixel will be at the top-left corner of the triangle
 
         // Calculate the original depth of the pixel
-        depth = glm::dot(barycentric, glm::vec3(original.pos[0].z, original.pos[1].z, original.pos[2].z));
+        // depth = glm::dot(barycentric, glm::vec3(original.pos[0].z, original.pos[1].z, original.pos[2].z));
+        depth = glm::dot(barycentric, glm::vec3(transformed.pos[0].z, transformed.pos[1].z, transformed.pos[2].z));
+
 
         if (depth == this->ZBuffer.Get(x, y))
         {
