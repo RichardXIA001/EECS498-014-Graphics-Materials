@@ -39,15 +39,23 @@ def get_rays(H, W, focal, pose):
     # Plus, Cast to the device (cuda)
     
     # dirs = 
-    
+
+    dirs = torch.stack([(u - W * 0.5) / focal, -(v - H * 0.5) / focal, -torch.ones_like(u)], -1).to(device)
+
+    dirs = dirs.view(-1, 3)
+
     # Step 2: Transform the direction vectors (dirs) from camera coordinates to world coordinates.
     # The provided pose is camera-to-world matrix. Please note the expected rays_d should have the shape of [N, 3], where N is the number of rays.
 
     # rays_d = 
+    rays_d = dirs @ pose[:3, :3].T  # Shape: (H*W, 3)
+
 
     # Step 3: Normalize the direction vectors on the last dimension (only 3 channels) to ensure they have unit length (Hint: check torch.norm and look at keepdim parameter of it).
 
     # rays_d = ...
+    rays_d = rays_d / torch.norm(rays_d, dim=-1, keepdim=True)
+
     #############################################################################
     #                             END OF YOUR CODE                              #
     #############################################################################
@@ -84,12 +92,12 @@ def positional_encoder(p, L_embed=6):
         #                                   TODO: Task 2                            #
         #############################################################################
         # hint: following the order of (sin, cos), like for fn in [torch.sin, torch.cos]:
-
+        # Compute the sine and cosine of the input tensor multiplied by 2^i.
+        rets.append(torch.sin(2 ** i * p))
+        rets.append(torch.cos(2 ** i * p))
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
-
-
     # Concatenate the original and encoded features along the last dimension.
     return torch.cat(rets, -1)
 
@@ -120,14 +128,15 @@ def cumprod_exclusive(tensor: torch.Tensor):
     # Compute the cumulative product along the last dimension of the tensor. Hint: Check torch.cumprod
     
     # cumprod = ...
+    cumprod = torch.cumprod(tensor, dim=-1)
     
     # Roll the elements along the last dimension by one position. Hint: Check torch.roll
     # This shifts the cumulative products to make them exclusive.
 
-    # cumprod = ...
+    cumprod = torch.roll(cumprod, shifts=1, dims=-1)
 
     # Set the first element of the last dimension to 1, as the exclusive product of the first element is always 1.
-    
+    cumprod[..., 0] = 1.0
     # Your code here
     #############################################################################
     #                             END OF YOUR CODE                              #
