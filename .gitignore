@@ -327,3 +327,5 @@ TSWLatexianTemp*
 *.pdf
 *.npz
 *gitignore
+
+*gsplat/
