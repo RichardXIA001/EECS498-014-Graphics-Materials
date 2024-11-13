@@ -201,6 +201,7 @@ def render(model, rays_o, rays_d, near, far, n_samples, rand=False):
     #############################################################################
     # Compute 3D coordinates of the sampled points along the rays.
 
+    points = rays_o[..., None, :] + rays_d[..., None, :] * t[..., :, None]   # Shape: (N_rays, N_samples, 3)
     # points = ...
     #############################################################################
     #                             END OF YOUR CODE                              #
@@ -224,6 +225,21 @@ def render(model, rays_o, rays_d, near, far, n_samples, rand=False):
     #############################################################################
     # Tries to solve the calculation from Matrix perspective instead of the For Loop
     # Perform volume rendering to obtain the weights of each point.
+    one_e_10 = torch.ones_like(t[..., :1]) * 1e10
+
+    # Compute distances between consecutive samples
+    dists = t[..., 1:] - t[..., :-1]
+    dists = torch.cat([dists, one_e_10], dim=-1)
+
+    alpha = 1.0 - torch.exp(-sigma * dists)
+
+    transmittance = cumprod_exclusive(1.0 - alpha + 1e-10)
+
+    weights = alpha * transmittance
+
+    rgb_map = torch.sum(weights[..., None] * rgb, dim=-2)
+
+    depth_map = torch.sum(weights * t, dim=-1)
 
     # one_e_10 = ...
     # dists = ...
