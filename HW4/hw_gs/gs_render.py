@@ -67,6 +67,18 @@ def build_rotation(r):
     # Here, we already help you initialize the Rotation Matrix to be (3x3) all zero matrix
     R = torch.zeros((q.size(0), 3, 3), device="cuda")
 
+    R[:, 0, 0] = 1 - 2 * (y ** 2 + z ** 2)
+    R[:, 0, 1] = 2 * (x * y - z * r)
+    R[:, 0, 2] = 2 * (x * z + y * r)
+
+    R[:, 1, 0] = 2 * (x * y + z * r)
+    R[:, 1, 1] = 1 - 2 * (x ** 2 + z ** 2)
+    R[:, 1, 2] = 2 * (y * z - x * r)
+
+    R[:, 2, 0] = 2 * (x * z - y * r)
+    R[:, 2, 1] = 2 * (y * z + x * r)
+    R[:, 2, 2] = 1 - 2 * (x ** 2 + y ** 2)    
+
     #############################################################################
     #                             END OF YOUR CODE                              #
     #############################################################################
@@ -96,6 +108,10 @@ def build_scaling_rotation(scaling_vector, quaternion_vector):
     # Hint: Check Formula 3 in the isntruction pdf
 
     # S = ...
+    S[:, 0, 0] = scaling_vector[:, 0]
+    S[:, 1, 1] = scaling_vector[:, 1]
+    S[:, 2, 2] = scaling_vector[:, 2]
+
     #############################################################################
     #                             END OF YOUR CODE                              #
     #############################################################################
@@ -169,6 +185,7 @@ def build_covariance_2d(mean3d, cov3d, viewmatrix, fov_x, fov_y, focal_x, focal_
     # Calculate the 2D covariance matrix cov2d
     # Hint: Check Args explaination for cov3d; For clean code of matrix multiplication, consider using @
 
+    cov2d = J @ W @ cov3d @ W.T @ J.transpose(1,2) 
     # cov2d = ...
     #############################################################################
     #                             END OF YOUR CODE                              #
@@ -272,6 +289,17 @@ class GaussRenderer(nn.Module):
                 #############################################################################
                 # check if the 2D gaussian intersects with the tile 
                 # To do so, we need to check if the rectangle of the 2D gaussian (rect) intersects with the tile
+                rect_min = rect[0]
+
+                rect_max = rect[1]
+
+                overlap_x = (rect_min[:, 0] <= w + TILE_SIZE) & (rect_max[:, 0] >= w)
+
+                # Overlap in y-axis
+                overlap_y = (rect_min[:, 1] <= h + TILE_SIZE) & (rect_max[:, 1] >= h)
+
+                # Combined overlap
+                in_mask = overlap_x & overlap_y
 
                 # in_mask = .....
                 #############################################################################
@@ -307,6 +335,25 @@ class GaussRenderer(nn.Module):
                 # gauss_weight = ... # Hint: Check step 1 in the instruction pdf
                 # alpha = ... # Hint: Check step 2 in the instruction pdf
                 # T = ... # Hint: Check Eq. (6) in the instruction pdf
+                gauss_weight = torch.exp(-0.5 * torch.einsum('bpi,pij,bpj->bp', dx, sorted_inverse_conv, dx))
+
+                alpha = (gauss_weight * sorted_opacity.squeeze(-1)[None, :]).clamp(max=0.99)  # Shape: [B, P]
+
+                # Compute transmittance T
+                shifted_alpha = torch.cat([torch.zeros_like(alpha[:, :1]), alpha[:, :-1]], dim=1)  # Shift alpha to the right
+                T = torch.cumprod(1 - shifted_alpha + 1e-10, dim=1)  # Shape: [B, P]
+
+                weights = alpha * T  # Shape: [B, P]
+
+                acc_alpha = weights.sum(dim=1, keepdim=True)  # Shape: [B, 1]
+
+                # Accumulate color,
+                # *************************Bug fix***********************************
+                # remember to take (1 - acc_alpha)
+                tile_color = (weights[..., None] * sorted_color[None, ...]).sum(dim=1) + (1 - acc_alpha)  # Shape: [B, 3] 
+
+                # Accumulate depth
+                tile_depth = (weights * sorted_depths[None, :]).sum(dim=1, keepdim=True)  # Shape: [B, 1]
 
                 # acc_alpha =  ... # Hint: Check Eq. (8) in the instruction pdf
                 # tile_color = ... # Hint: Check Eq. (5) in the instruction pdf
