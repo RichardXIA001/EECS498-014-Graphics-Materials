@@ -65,6 +65,38 @@ def rand_cutout(x, ratio=0.5):
     '''
     # TODO: Implement the Rand Cutout; The range should be randomly chosen in 25%-50% of the height and width; position is random.
 
+    # Get the size of the image
+    B, C, H, W = x.size()
+
+    # Get the cutout size
+    cutout_H = int(H * ratio)
+    cutout_W = int(W * ratio)
+
+    device = x.device
+    # Get the cutout position
+    cutout_x = torch.randint(0, H - cutout_H + 1, (B,)).to(device)
+    cutout_y = torch.randint(0, W - cutout_W + 1, (B,)).to(device)
+
+    
+
+    h_grid = torch.arange(H, device=device).view(1, H, 1).to(device) # shape: (1,H,1)
+    w_grid = torch.arange(W, device=device).view(1, 1, W).to(device) # shape: (1,1,W)
+
+    # Create a mask for all images simultaneously:
+    # mask[i,h,w] = True if pixel (h,w) lies within the cutout region of image i
+    mask = ((h_grid >= cutout_x[:, None, None]) & (h_grid < (cutout_x + cutout_H)[:, None, None]) &
+            (w_grid >= cutout_y[:, None, None]) & (w_grid < (cutout_y + cutout_W)[:, None, None]))
+    # mask shape: (B,H,W)
+
+    # Expand mask to cover (B,C,H,W)
+    mask = mask.unsqueeze(1).expand(B, C, H, W).to(device)
+
+    # Zero out the pixels in the cutout regions
+    x[mask] = 0
+
+    # # Cutout the image
+    # x[:, :, cutout_x:cutout_x+cutout_H, cutout_y:cutout_y+cutout_W] = 0
+
     ###############################################################################################################
 
     return x

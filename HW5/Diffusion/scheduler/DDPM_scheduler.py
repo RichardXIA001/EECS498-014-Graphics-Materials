@@ -449,6 +449,15 @@ class DDPMScheduler(SchedulerMixin, ConfigMixin):
         current_alpha_t = None              # Check Formula (7)   
         current_beta_t = None               # Check Formula (8)
 
+        alpha_prod_t = self.alphas_cumprod[t]  # Formula (3): ᾱ_t
+        alpha_prod_t_prev = self.alphas_cumprod[prev_t] if prev_t >= 0 else torch.tensor(1.0).to(alpha_prod_t.device)
+        beta_prod_t = 1 - alpha_prod_t  # Formula (5): β̄_t = 1 - ᾱ_t
+        beta_prod_t_prev = 1 - alpha_prod_t_prev  # Formula (6): β̄_{t-1} = 1 - ᾱ_{t-1}
+
+        current_alpha_t = alpha_prod_t / alpha_prod_t_prev  # Formula (7): α_t
+        current_beta_t = 1 - current_alpha_t  # Formula (8): β_t
+        
+
         #######################################################################################################
 
 
@@ -461,6 +470,8 @@ class DDPMScheduler(SchedulerMixin, ConfigMixin):
         #       epsilon(x_t) -> model_output
         #       x_t -> sample
         pred_original_sample = None            
+
+        pred_original_sample = (sample - torch.sqrt(beta_prod_t) * model_output) / torch.sqrt(alpha_prod_t)
 
         ###############################################################################################################
 
@@ -478,6 +489,9 @@ class DDPMScheduler(SchedulerMixin, ConfigMixin):
         # Complete Formula (2) based on what you have in TODO #1 and TODO #2  
         #  ˜σ_i*z term is implemented below, you can skip that. 
         pred_prev_sample = None
+
+        pred_prev_sample = torch.sqrt(alpha_prod_t_prev) * current_beta_t / beta_prod_t  * pred_original_sample + \
+                           torch.sqrt(current_alpha_t) * beta_prod_t_prev / beta_prod_t * sample
 
         #################################################################################################################
 
