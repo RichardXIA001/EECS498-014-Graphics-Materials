@@ -6,9 +6,11 @@
 
 1. Original
 
-Difference between Eq2 and Eq1: 
+**Task 2 for GAN**: Difference between Eq2 and Eq1: 
 
-Eq2 is trying to minize the score of fake images and maximize that of real images, while Eq1 is vise verse.
+Eq2 is trying to minize the score of fake images and maximize that of real images, while in Eq1 the generator is trying to minize the scores for fake images.
+
+Becasue the generator always wanted to generate more plausible images and confuse the discriminator, but the discriminator always wanted to select those real images and give penalty to fake images
 
 2. Add R1
 
@@ -16,6 +18,8 @@ Eq2 is trying to minize the score of fake images and maximize that of real image
 
 
 ## Diffusion
+
+**Task 3**
 
 1. Time cost for DDPM/DDIM to generate 10 images:
 
